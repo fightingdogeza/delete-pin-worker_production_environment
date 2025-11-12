@@ -5,7 +5,7 @@ import { getSupabase } from './utils/supabaseClient';
 export default {
   async fetch(request: Request, env: any) {
     const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
+      "Access-Control-Allow-Origin": "https://webapp-bka.pages.dev",
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,x-user-role',
       'Content-Type': 'application/json; charset=UTF-8',
@@ -66,7 +66,7 @@ export default {
           // サニタイズして安全な値に変換
           const email = sanitizeEmail(rawEmail);
           const password = sanitizePassword(rawPassword);
-           if (!email || !password) {
+          if (!email || !password) {
             return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), {
               status: 400,
               headers: corsHeaders,
