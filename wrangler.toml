@@ -1,0 +1,10 @@
+name = "delete-pin-worker"
+main = "src/index.ts"
+compatibility_date = "2025-11-05"
+compatibility_flags = ["nodejs_compat"]  # ← Node互換ON
+
+[vars]
+SUPABASE_URL = "https://xztzhsvcytquzhzduura.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6dHpoc3ZjeXRxdXpoemR1dXJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA4MTczMzEsImV4cCI6MjA3NjM5MzMzMX0.TnqtjeGLezpoPKNuc1q5ooIMiwneZjrEf4j0j5z3a4c"
+[env.production]
+route = "https://delete-pin-worker.chi-map.workers.dev/*"
