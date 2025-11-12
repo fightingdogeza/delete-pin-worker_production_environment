@@ -67,6 +67,9 @@ export default {
           // サニタイズして安全な値に変換
           const email = sanitizeEmail(rawEmail);
           const password = sanitizePassword(rawPassword);
+
+          console.log("Signup request:", { email, password });
+          
           if (!email || !password) {
             return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), {
               status: 400,
@@ -90,6 +93,8 @@ export default {
           if (password.length < 6) {
             return new Response(JSON.stringify({ error: "パスワードは6文字以上で入力してください" }), { status: 400, headers: corsHeaders });
           }
+
+          //通常のanonキーでは合致しているか探せない
           const alreadyExists = userList.users.some((u) => u.email?.toLowerCase() === email.toLowerCase());
           if (alreadyExists) {
             return new Response(JSON.stringify({ error: 'このメールアドレスは既に登録されています。' }), {
@@ -103,7 +108,7 @@ export default {
             email,
             password,
             options: {
-              emailRedirectTo: 'http:/webapp-bka.pages.dev/auth.html',
+              emailRedirectTo: 'https://webapp-bka.pages.dev/auth',
             },
           });
 
