@@ -7,7 +7,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,x-user-role',
       'Content-Type': 'application/json; charset=UTF-8',
     };
 
@@ -20,6 +20,16 @@ export default {
       const safeBase = base.replace(/[^a-zA-Z0-9_-]/g, '_');
       return `${safeBase}_${random}_${uuid}.${ext}`;
     }
+    // HTMLなどのタグを無害化する
+    function sanitizeText(input: string): string {
+      return input
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     try {
       const url = new URL(request.url);
       const path = url.pathname;
@@ -217,8 +227,8 @@ export default {
       // --- ピン投稿 ---
       if (path === '/post-pin' && request.method === 'POST') {
         const formData = await request.formData();
-        const title = formData.get("title")?.toString();
-        const description = formData.get("description")?.toString();
+        const title = sanitizeText(formData.get("title")?.toString() || "");
+        const description = sanitizeText(formData.get("description")?.toString() || "");
         const category_id = formData.get("category_id")?.toString();
         const lat = parseFloat(formData.get("lat")?.toString() || "0");
         const lng = parseFloat(formData.get("lng")?.toString() || "0");
@@ -291,9 +301,9 @@ export default {
           // URLパスを分解して "pin-images/" の後ろを取得
           const parts = url.pathname.split('/');
           const pinImagesIndex = parts.indexOf('pin-images');
-          const filePath = parts.slice(pinImagesIndex + 1).join('/'); 
+          const filePath = parts.slice(pinImagesIndex + 1).join('/');
           console.log("削除対象ファイル:", filePath);
-            const supabaseAdmin = getSupabase(env); // service_role key
+          const supabaseAdmin = getSupabase(env); // service_role key
           const { error: storageError } = await supabaseAdmin.storage.from('pin-images').remove([filePath]);
           if (storageError) return new Response(JSON.stringify({ warning: 'DBは削除済みだが画像削除失敗', storageError: storageError.message }), { status: 200, headers: corsHeaders });
         }
