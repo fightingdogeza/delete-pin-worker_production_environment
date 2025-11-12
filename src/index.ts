@@ -100,7 +100,7 @@ export default {
             email,
             password,
             options: {
-              emailRedirectTo: 'http://localhost/project/auth.html',
+              emailRedirectTo: 'http:/webapp-bka.pages.dev/auth.html',
             },
           });
 
