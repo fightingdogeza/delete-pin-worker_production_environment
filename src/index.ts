@@ -20,14 +20,19 @@ export default {
       const safeBase = base.replace(/[^a-zA-Z0-9_-]/g, '_');
       return `${safeBase}_${random}_${uuid}.${ext}`;
     }
-    // HTMLなどのタグを無害化する
-    function sanitizeText(input: string): string {
-      return input
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+    // 通常のテキスト入力用（タイトル・説明など）
+    function sanitizeText(input: string) {
+      return input.replace(/[<>"'`;(){}]/g, "");
+    }
+
+    // メールアドレス用：不正文字を除外するが、@と.は残す
+    function sanitizeEmail(input: string) {
+      return input.replace(/[^a-zA-Z0-9@._+-]/g, "");
+    }
+
+    // パスワード用：制御文字（改行やタブなど）だけ除外
+    function sanitizePassword(input: string) {
+      return input.replace(/[\r\n\t]/g, "");
     }
 
     try {
@@ -52,8 +57,16 @@ export default {
       // --- ユーザー登録 ---
       if (path === '/register' && request.method === 'POST') {
         try {
-          const { email, password } = await request.json();
-          if (!email || !password) {
+          const body = await request.json();
+
+          // 生の入力値を取得
+          const rawEmail = body.email;
+          const rawPassword = body.password;
+
+          // サニタイズして安全な値に変換
+          const email = sanitizeEmail(rawEmail);
+          const password = sanitizePassword(rawPassword);
+           if (!email || !password) {
             return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), {
               status: 400,
               headers: corsHeaders,
@@ -117,13 +130,29 @@ export default {
       }
       // --- ログイン ---
       if (path === '/login' && request.method === 'POST') {
-        const { email, password } = await request.json();
+        const body = await request.json();
+
+        // 生の入力値を取得
+        const rawEmail = body.email;
+        const rawPassword = body.password;
+
+        // サニタイズして安全な値に変換
+        const email = sanitizeEmail(rawEmail);
+        const password = sanitizePassword(rawPassword);
         if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
 
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 401, headers: corsHeaders });
 
-        return new Response(JSON.stringify({ success: true, session: data.session }), { headers: corsHeaders });
+        return new Response(
+          JSON.stringify({
+            success: true,
+            user: data.user,
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }),
+          { headers: corsHeaders }
+        );
       }
       // --- ログイン者確認 ---
       if (path === '/me' && request.method === 'GET') {
@@ -198,7 +227,7 @@ export default {
           const supabaseClient = initSupabase(env);
 
           const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-            redirectTo: 'http://localhost/project/reset-confirm.html',
+            redirectTo: 'http://webapp-bka.pages.dev/reset-confirm.html',
           });
 
           if (error) {
