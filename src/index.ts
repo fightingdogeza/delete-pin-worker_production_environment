@@ -293,7 +293,8 @@ export default {
           const pinImagesIndex = parts.indexOf('pin-images');
           const filePath = parts.slice(pinImagesIndex + 1).join('/'); 
           console.log("削除対象ファイル:", filePath);
-          const { error: storageError } = await supabase.storage.from('pin-images').remove([filePath]);
+            const supabaseAdmin = getSupabase(env); // service_role key
+          const { error: storageError } = await supabaseAdmin.storage.from('pin-images').remove([filePath]);
           if (storageError) return new Response(JSON.stringify({ warning: 'DBは削除済みだが画像削除失敗', storageError: storageError.message }), { status: 200, headers: corsHeaders });
         }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
