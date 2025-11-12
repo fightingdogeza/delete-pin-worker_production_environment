@@ -5,7 +5,7 @@ import { getSupabase } from './utils/supabaseClient';
 export default {
   async fetch(request: Request, env: any) {
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "https://webapp-bka.pages.dev/*",
+      "Access-Control-Allow-Origin": "https://webapp-bka.pages.dev",
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,x-user-role',
       'Content-Type': 'application/json; charset=UTF-8',
