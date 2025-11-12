@@ -5,7 +5,7 @@ import { getSupabase } from './utils/supabaseClient';
 export default {
   async fetch(request: Request, env: any) {
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "https://webapp-bka.pages.dev",
+      "Access-Control-Allow-Origin": "https://webapp-bka.pages.dev/*",
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,x-user-role',
       'Content-Type': 'application/json; charset=UTF-8',
@@ -59,6 +59,7 @@ export default {
         try {
           const body = await request.json();
 
+          console.log(body);
           // 生の入力値を取得
           const rawEmail = body.email;
           const rawPassword = body.password;
@@ -86,7 +87,9 @@ export default {
               headers: corsHeaders,
             });
           }
-
+          if (password.length < 6) {
+            return new Response(JSON.stringify({ error: "パスワードは6文字以上で入力してください" }), { status: 400, headers: corsHeaders });
+          }
           const alreadyExists = userList.users.some((u) => u.email?.toLowerCase() === email.toLowerCase());
           if (alreadyExists) {
             return new Response(JSON.stringify({ error: 'このメールアドレスは既に登録されています。' }), {
