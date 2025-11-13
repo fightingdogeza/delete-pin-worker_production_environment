@@ -108,7 +108,7 @@ export default {
             email,
             password,
             options: {
-              emailRedirectTo: 'https://webapp-bka.pages.dev/auth',
+              emailRedirectTo: 'https:/webapp-bka.pages.dev/auth',
             },
           });
 
