@@ -197,7 +197,7 @@ export default {
               user: {
                 id: user.id,
                 email: user.email,
-                role, // ← 追加
+                role: role, // ← 追加
               },
             }),
             { headers: corsHeaders }
