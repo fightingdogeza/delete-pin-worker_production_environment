@@ -5,7 +5,7 @@ import { getSupabase } from './utils/supabaseClient';
 export default {
   async fetch(request: Request, env: any) {
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": "https://chi-map.pages.dev",
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,x-user-role',
       'Content-Type': 'application/json; charset=UTF-8',
@@ -108,7 +108,7 @@ export default {
             email,
             password,
             options: {
-              emailRedirectTo: 'https:/webapp-bka.pages.dev/auth',
+              emailRedirectTo: 'https:/chi-map.pages.dev/auth',
             },
           });
 
@@ -235,7 +235,7 @@ export default {
           const supabaseClient = initSupabase(env);
 
           const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-            redirectTo: 'http://webapp-bka.pages.dev/reset-confirm.html',
+            redirectTo: 'http://chi-map.pages.dev/reset-confirm',
           });
 
           if (error) {
