@@ -235,7 +235,7 @@ export default {
           const supabaseClient = initSupabase(env);
 
           const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-            redirectTo: 'http://chi-map.pages.dev/reset-confirm',
+            redirectTo: 'https://chi-map.pages.dev/reset-confirm',
           });
 
           if (error) {
