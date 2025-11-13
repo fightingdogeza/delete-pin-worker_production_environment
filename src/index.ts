@@ -69,7 +69,7 @@ export default {
           const password = sanitizePassword(rawPassword);
 
           console.log("Signup request:", { email, password });
-          
+
           if (!email || !password) {
             return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), {
               status: 400,
@@ -166,11 +166,12 @@ export default {
       if (path === '/me' && request.method === 'GET') {
         const authHeader = request.headers.get("Authorization");
         const refreshHeader = request.headers.get("X-Refresh-Token"); // refresh_tokenをヘッダーで受け取る想定
+
         if (!authHeader) {
-          return new Response(JSON.stringify({ loggedIn: false, message: "No access token" }), {
-            status: 401,
-            headers: corsHeaders,
-          });
+          return new Response(
+            JSON.stringify({ loggedIn: false, message: "No access token" }),
+            { status: 401, headers: corsHeaders }
+          );
         }
 
         const token = authHeader.replace("Bearer ", "").trim();
@@ -178,8 +179,27 @@ export default {
 
         // ===== access_token が有効な場合 =====
         if (data?.user && !error) {
+          const user = data.user;
+
+          // 🔹 app_users から role を取得する
+          const { data: roleData, error: roleError } = await supabase
+            .from("app_users")
+            .select("role")
+            .eq("id", user.id)
+            .single();
+
+          // 取得に失敗したら "user" をデフォルトに
+          const role = roleError || !roleData ? "user" : roleData.role;
+
           return new Response(
-            JSON.stringify({ loggedIn: true, user: data.user }),
+            JSON.stringify({
+              loggedIn: true,
+              user: {
+                id: user.id,
+                email: user.email,
+                role, // ← 追加
+              },
+            }),
             { headers: corsHeaders }
           );
         }
@@ -193,10 +213,23 @@ export default {
           const user = refreshed?.user;
 
           if (session && user && !refreshError) {
+            // 🔹 再取得後も role を取る
+            const { data: roleData, error: roleError } = await supabase
+              .from("app_users")
+              .select("role")
+              .eq("id", user.id)
+              .single();
+
+            const role = roleError || !roleData ? "user" : roleData.role;
+
             return new Response(
               JSON.stringify({
                 loggedIn: true,
-                user,
+                user: {
+                  id: user.id,
+                  email: user.email,
+                  role,
+                },
                 new_access_token: session.access_token,
                 new_refresh_token: session.refresh_token,
               }),
@@ -215,10 +248,10 @@ export default {
         }
 
         // ===== どちらも無効 =====
-        return new Response(JSON.stringify({ loggedIn: false, message: "Invalid or expired token" }), {
-          status: 401,
-          headers: corsHeaders,
-        });
+        return new Response(
+          JSON.stringify({ loggedIn: false, message: "Invalid or expired token" }),
+          { status: 401, headers: corsHeaders }
+        );
       }
 
       if (path === '/request-password-reset' && request.method === 'POST') {
