@@ -181,8 +181,9 @@ export default {
         if (data?.user && !error) {
           const user = data.user;
 
+          const supabaseAdmin = getSupabase(env);
           // 🔹 app_users から role を取得する
-          const { data: roleData, error: roleError } = await supabase
+          const { data: roleData, error: roleError } = await supabaseAdmin
             .from("app_users")
             .select("role")
             .eq("email", user.email)
@@ -203,7 +204,6 @@ export default {
             { headers: corsHeaders }
           );
         }
-
         // ===== access_token が無効 && refresh_token がある場合 =====
         if (refreshHeader) {
           const refresh_token = refreshHeader.trim();
