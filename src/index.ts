@@ -136,7 +136,6 @@ export default {
           });
         }
       }
-      // --- ログイン ---
       if (path === '/login' && request.method === 'POST') {
         const body = await request.json();
 
@@ -147,21 +146,47 @@ export default {
         // サニタイズして安全な値に変換
         const email = sanitizeEmail(rawEmail);
         const password = sanitizePassword(rawPassword);
-        if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
 
+        if (!email || !password) {
+          return new Response(
+            JSON.stringify({ error: 'メールとパスワードを入力してください' }),
+            { status: 400, headers: corsHeaders }
+          );
+        }
+
+        // サービスロールキーを使ったSupabaseクライアントでログイン
+        const supabase = getSupabase(env);
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 401, headers: corsHeaders });
+
+        if (error) {
+          return new Response(
+            JSON.stringify({ error: error.message }),
+            { status: 401, headers: corsHeaders }
+          );
+        }
+
+        // セッションが null の場合はメール未確認や設定による可能性
+        const access_token = data.session?.access_token || null;
+        const refresh_token = data.session?.refresh_token || null;
+
+        // レスポンスにメッセージを追加して状況を明確化
+        let message = "ログイン成功";
+        if (!access_token) {
+          message = "メール未確認またはセッション未作成のためトークンは発行されません";
+        }
 
         return new Response(
           JSON.stringify({
-            success: true,
+            success: !!data.user,
             user: data.user,
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
+            access_token,
+            refresh_token,
+            message,
           }),
           { headers: corsHeaders }
         );
       }
+
       // --- ログイン者確認 ---
       if (path === '/me' && request.method === 'GET') {
         const authHeader = request.headers.get("Authorization");
