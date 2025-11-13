@@ -185,7 +185,7 @@ export default {
           const { data: roleData, error: roleError } = await supabase
             .from("app_users")
             .select("role")
-            .eq("id", user.id)
+            .eq("email", user.email)
             .single();
 
           // 取得に失敗したら "user" をデフォルトに
