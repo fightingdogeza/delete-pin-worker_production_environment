@@ -331,6 +331,8 @@ export default {
         let query = supabase
           .from("hazard_pin")
           .select("*, categories(name)");
+        const numericCategories = categories.map(c => Number(c));
+        query = query.in("category_id", numericCategories);
 
         // --- カテゴリ絞り込み ---
         if (categories.length > 0) {
