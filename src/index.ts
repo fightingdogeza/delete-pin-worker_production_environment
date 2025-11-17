@@ -278,7 +278,6 @@ export default {
           { status: 401, headers: corsHeaders }
         );
       }
-
       if (path === '/request-password-reset' && request.method === 'POST') {
         try {
           const { email } = await request.json();
@@ -318,6 +317,53 @@ export default {
         }
       }
 
+      // --- フィルター検索（カテゴリ・半径など） ---
+      if (path === "/filter-pins" && request.method === "POST") {
+        const { categories, radius, center } = await request.json();
+
+        if (!categories || !Array.isArray(categories)) {
+          return new Response(JSON.stringify({ error: "categories は配列である必要があります" }), {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+
+        let query = supabase
+          .from("hazard_pin")
+          .select("*, categories(name)");
+
+        // --- カテゴリ絞り込み ---
+        if (categories.length > 0) {
+          query = query.in("category_id", categories);
+        }
+
+        // --- 半径検索を使用する場合 ---
+        if (radius && center?.lat && center?.lng) {
+          const radiusMeters = radius * 1000;
+
+          // SQL 条件を追加
+          query = query.filter(
+            "id",
+            "in",
+            supabase.rpc("filter_by_distance", {
+              target_lat: center.lat,
+              target_lng: center.lng,
+              radius_meters: radiusMeters
+            })
+          );
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: corsHeaders,
+          });
+        }
+
+        return new Response(JSON.stringify(data), { headers: corsHeaders });
+      }
 
       // --- ピン投稿 ---
       if (path === '/post-pin' && request.method === 'POST') {
