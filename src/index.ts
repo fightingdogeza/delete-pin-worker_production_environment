@@ -491,7 +491,7 @@ export default {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache, no-transform',
             'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': 'https://chi-map.pages.dev',
           },
         });
       }
