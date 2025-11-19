@@ -80,7 +80,7 @@ export default {
           // --- Supabase Service Role Key で管理者クライアントを作成 ---
           const supabaseAdmin = getSupabase(env);
 
-          // --- ① 既に同じメールが存在するかチェック ---
+          // ---既に同じメールが存在するかチェック ---
           const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
 
           if (listError) {
@@ -428,15 +428,22 @@ export default {
 
       // --- ピン削除 ---
       if (path === '/delete-pin' && request.method === 'POST') {
-        const { id, imagePath, access_token, refresh_token } = await request.json();
+        const { id, imagePath, access_token, refresh_token, role } =
+          await request.json();
         if (!id || !access_token || !refresh_token) return new Response(JSON.stringify({ error: 'id, access_token, refresh_token が必要です' }), { status: 400, headers: corsHeaders });
 
         // セッション設定
-        await supabase.auth.setSession({ access_token, refresh_token });
-
-        // DB 削除
-        const { error: deleteError } = await supabase.from('hazard_pin').delete().eq('id', id);
-        if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: corsHeaders });
+        if (role === "admin") {
+          const supabase = getSupabase(env);
+          // DB 削除
+          const { error: deleteError } = await supabase.from('hazard_pin').delete().eq('id', id);
+          if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: corsHeaders });
+        } else {
+          await supabase.auth.setSession({ access_token, refresh_token });
+          // DB 削除
+          const { error: deleteError } = await supabase.from('hazard_pin').delete().eq('id', id);
+          if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: corsHeaders });
+        }
 
         // Storage 削除
         if (imagePath) {
