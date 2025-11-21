@@ -191,7 +191,7 @@ export default {
         if (!categories || !Array.isArray(categories)) return new Response(JSON.stringify({ error: 'categories は配列である必要があります' }), { status: 400, headers: corsHeaders });
 
         // Build a reduced DB query using bounding box to reduce scanned rows
-        let query = supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at');
+        let query = supabase.from('hazard_pin').select('id,title,description,lat,lng,uid,image_path,created_at,categories ( id, name )');
 
         // category filter
         if (categories.length > 0) {
@@ -255,47 +255,18 @@ export default {
 
       // --- get-all-pins: return lightweight fields only ---
       if (path === '/get-all-pins' && request.method === 'POST') {
-        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at');
+        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,lat,lng,uid,image_path,created_at,categories ( id, name )');
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-        const { data: categories, error: catError } = await supabase
-          .from('categories')
-          .select('id, name');
-        if (catError) {
-          return new Response(JSON.stringify({ error: catError.message }), {
-            status: 500,
-            headers: corsHeaders
-          });
-        }
-        const categoryMap = Object.fromEntries(categories.map((c: { id: any; name: any; }) => [c.id, c.name]));
-        const enriched = data.map((p: { category_id: string | number; }) => ({
-          ...p,
-          category_name: categoryMap[p.category_id] ?? "不明"
-        }));
-        return new Response(JSON.stringify(enriched), { headers: corsHeaders });
+        return new Response(JSON.stringify(data), { headers: corsHeaders });
       }
 
       // --- get-user-pins ---
       if (path === '/get-user-pins' && request.method === 'POST') {
         const { userId } = await request.json();
         if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers: corsHeaders });
-        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at').eq('uid', userId);
+        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,lat,lng,uid,image_path,created_at,categories ( id, name )').eq('uid', userId);
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-        const { data: categories, error: catError } = await supabase
-          .from('categories')
-          .select('id, name');
-        if (catError) {
-          return new Response(JSON.stringify({ error: catError.message }), {
-            status: 500,
-            headers: corsHeaders
-          });
-        }
-        const categoryMap = Object.fromEntries(categories.map((c: { id: any; name: any; }) => [c.id, c.name]));
-        const enriched = data.map((p: { category_id: string | number; }) => ({
-          ...p,
-          category_name: categoryMap[p.category_id] ?? "不明"
-        }));
-
-        return new Response(JSON.stringify(enriched), { headers: corsHeaders });
+        return new Response(JSON.stringify(data), { headers: corsHeaders });
       }
 
       // --- delete-pin ---
