@@ -10,7 +10,8 @@ export default {
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,x-user-role',
       'Content-Type': 'application/json; charset=UTF-8',
     };
-
+    const supabase = initSupabase(env);
+    const supabaseAdmin = getSupabase(env);
     // ファイル名サニタイズ
     function sanitizeFileName(fileName: string) {
       const ext = fileName.split('.').pop();
@@ -43,7 +44,6 @@ export default {
         return new Response('OK', { headers: corsHeaders });
       }
       // Supabase 初期化
-      const supabase = initSupabase(env);
       // --- Supabase情報取得 ---
       if (path === '/init-supabase') {
         return new Response(
@@ -76,10 +76,6 @@ export default {
               headers: corsHeaders,
             });
           }
-
-          // --- Supabase Service Role Key で管理者クライアントを作成 ---
-          const supabaseAdmin = getSupabase(env);
-
           // ---既に同じメールが存在するかチェック ---
           const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
 
@@ -155,8 +151,7 @@ export default {
         }
 
         // サービスロールキーを使ったSupabaseクライアントでログイン
-        const supabase = getSupabase(env);
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
 
         if (error) {
           return new Response(
@@ -202,12 +197,9 @@ export default {
         const token = authHeader.replace("Bearer ", "").trim();
         const { data, error } = await supabase.auth.getUser(token);
 
-        // ===== access_token が有効な場合 =====
         if (data?.user && !error) {
           const user = data.user;
 
-          const supabaseAdmin = getSupabase(env);
-          // 🔹 app_users から role を取得する
           const { data: roleData, error: roleError } = await supabaseAdmin
             .from("app_users")
             .select("role")
@@ -229,7 +221,6 @@ export default {
             { headers: corsHeaders }
           );
         }
-        // ===== access_token が無効 && refresh_token がある場合 =====
         if (refreshHeader) {
           const refresh_token = refreshHeader.trim();
           const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession({ refresh_token });
@@ -238,7 +229,6 @@ export default {
           const user = refreshed?.user;
 
           if (session && user && !refreshError) {
-            // 🔹 再取得後も role を取る
             const { data: roleData, error: roleError } = await supabase
               .from("app_users")
               .select("role")
@@ -272,52 +262,11 @@ export default {
           );
         }
 
-        // ===== どちらも無効 =====
         return new Response(
           JSON.stringify({ loggedIn: false, message: "Invalid or expired token" }),
           { status: 401, headers: corsHeaders }
         );
       }
-      if (path === '/request-password-reset' && request.method === 'POST') {
-        try {
-          const { email } = await request.json();
-          if (!email) {
-            return new Response(JSON.stringify({ error: 'メールアドレスを入力してください。' }), {
-              status: 400,
-              headers: corsHeaders,
-            });
-          }
-
-          // anonキーでOK（認証不要のため）
-          const supabaseClient = initSupabase(env);
-
-          const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-            redirectTo: 'https://chi-map.pages.dev/reset-confirm',
-          });
-
-          if (error) {
-            console.error('Reset error:', error.message);
-            return new Response(JSON.stringify({ error: error.message }), {
-              status: 400,
-              headers: corsHeaders,
-            });
-          }
-
-          return new Response(
-            JSON.stringify({ success: true, message: 'パスワードリセット用のメールを送信しました。' }),
-            { headers: corsHeaders }
-          );
-
-        } catch (err) {
-          console.error('Reset worker error:', err);
-          return new Response(JSON.stringify({ error: '内部エラーが発生しました。' }), {
-            status: 500,
-            headers: corsHeaders,
-          });
-        }
-      }
-
-      // --- フィルター検索（カテゴリ・半径など） ---
       if (path === "/filter-pins" && request.method === "POST") {
         const { categories, radius, center } = await request.json();
 
@@ -434,9 +383,8 @@ export default {
 
         // セッション設定
         if (role === "admin") {
-          const supabase = getSupabase(env);
           // DB 削除
-          const { error: deleteError } = await supabase.from('hazard_pin').delete().eq('id', id);
+          const { error: deleteError } = await supabaseAdmin.from('hazard_pin').delete().eq('id', id);
           if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: corsHeaders });
         } else {
           await supabase.auth.setSession({ access_token, refresh_token });
@@ -453,56 +401,12 @@ export default {
           const pinImagesIndex = parts.indexOf('pin-images');
           const filePath = parts.slice(pinImagesIndex + 1).join('/');
           console.log("削除対象ファイル:", filePath);
-          const supabaseAdmin = getSupabase(env); // service_role key
+          const supabaseAdmin = getSupabase(env);
           const { error: storageError } = await supabaseAdmin.storage.from('pin-images').remove([filePath]);
           if (storageError) return new Response(JSON.stringify({ warning: 'DBは削除済みだが画像削除失敗', storageError: storageError.message }), { status: 200, headers: corsHeaders });
         }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-      // --- リアルタイム監視（SSE） ---
-      if (path === '/realtime' && request.method === 'GET') {
-        const supabase = getSupabase(env);
-        let channel: any;
-        let controllerRef: ReadableStreamDefaultController | null = null;
-
-        const stream = new ReadableStream({
-          start(controller) {
-            controllerRef = controller;
-            const encoder = new TextEncoder();
-
-            channel = supabase.channel('hazard_pin_changes')
-              .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'hazard_pin' },
-                (payload) => {
-                  const msg = `data: ${JSON.stringify(payload.new)}\n\n`;
-                  controller.enqueue(encoder.encode(msg));
-                }
-              )
-              .subscribe();
-
-            controller.enqueue(encoder.encode(`data: {"status":"connected"}\n\n`));
-          },
-
-          cancel(reason) {
-            console.log('SSE接続終了:', reason);
-            if (channel) {
-              supabase.removeChannel(channel);
-            }
-            controllerRef = null;
-          },
-        });
-
-        return new Response(stream, {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache, no-transform',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': 'https://chi-map.pages.dev',
-          },
-        });
-      }
-      // --- デフォルト応答 ---
       return new Response(JSON.stringify({ message: 'Worker is running', path }), { status: 200, headers: corsHeaders });
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
