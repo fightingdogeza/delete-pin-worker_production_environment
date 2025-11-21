@@ -280,7 +280,22 @@ export default {
         if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers: corsHeaders });
         const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at').eq('uid', userId);
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-        return new Response(JSON.stringify(data), { headers: corsHeaders });
+        const { data: categories, error: catError } = await supabase
+          .from('categories')
+          .select('id, name');
+        if (catError) {
+          return new Response(JSON.stringify({ error: catError.message }), {
+            status: 500,
+            headers: corsHeaders
+          });
+        }
+        const categoryMap = Object.fromEntries(categories.map((c: { id: any; name: any; }) => [c.id, c.name]));
+        const enriched = data.map((p: { category_id: string | number; }) => ({
+          ...p,
+          category_name: categoryMap[p.category_id] ?? "不明"
+        }));
+
+        return new Response(JSON.stringify(enriched), { headers: corsHeaders });
       }
 
       // --- delete-pin ---
