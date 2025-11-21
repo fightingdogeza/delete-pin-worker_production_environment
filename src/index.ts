@@ -191,14 +191,12 @@ export default {
         if (!categories || !Array.isArray(categories)) return new Response(JSON.stringify({ error: 'categories は配列である必要があります' }), { status: 400, headers: corsHeaders });
 
         // Build a reduced DB query using bounding box to reduce scanned rows
-        let query = supabase.from('hazard_pin').select(`id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)`);
-
+        let query = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at');
         // category filter
         if (categories.length > 0) {
           const numericCategories = categories.map((c: any) => Number(c)).filter((n: number) => !Number.isNaN(n));
           if (numericCategories.length > 0) query = query.in('category_id', numericCategories);
         }
-
         // radius filter via bounding box + JS Haversine
         let radiusMeters = null;
         if (radius && center?.lat && center?.lng) {
@@ -255,7 +253,7 @@ export default {
 
       // --- get-all-pins: return lightweight fields only ---
       if (path === '/get-all-pins' && request.method === 'POST') {
-        const { data, error } = await supabase.from('hazard_pin').select(`id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)`);
+        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at');
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
         return new Response(JSON.stringify(data), { headers: corsHeaders });
       }
@@ -264,7 +262,7 @@ export default {
       if (path === '/get-user-pins' && request.method === 'POST') {
         const { userId } = await request.json();
         if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers: corsHeaders });
-        const { data, error } = await supabase.from('hazard_pin').select(`id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)`).eq('uid', userId);
+        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at');
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
         return new Response(JSON.stringify(data), { headers: corsHeaders });
       }
