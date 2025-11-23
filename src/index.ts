@@ -74,22 +74,50 @@ function boundingBox(lat: number, lng: number, radiusMeters: number) {
     maxLng: lng + lngDelta,
   };
 }
+const ALLOWED_ORIGIN = "https://chi-map.pages.dev";
+
+function corsHeaders(origin: string | null): Record<string, string>{
+  if (origin !== ALLOWED_ORIGIN) {
+    return { 'Access-Control-Allow-Origin': 'none' };
+  }
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token',
+    'Content-Type': 'application/json'
+  };
+}
+
+// ---- user role (JWT) validator ----
+async function getUserRole(accessToken: string, supabase: any, supabaseAdmin: any) {
+  const { data, error } = await supabase.auth.getUser(accessToken);
+  if (error || !data.user) return "guest";
+
+  const email = data.user.email;
+  if (!email) return "user";
+
+  const { data: r } = await supabaseAdmin
+    .from("app_users")
+    .select("role")
+    .eq("email", email)
+    .single();
+
+  return r?.role ?? "user";
+}
 
 export default {
   async fetch(request: Request, env: any) {
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': 'https://chi-map.pages.dev',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,x-user-role',
-      'Content-Type': 'application/json; charset=UTF-8',
-    };
+    const origin = request.headers.get("Origin");
+    const headers: Record<string, string> = corsHeaders(origin);
+    // OPTIONS
+    if (request.method === "OPTIONS") {
+      return new Response("OK", { headers });
+    }
 
     try {
       const url = new URL(request.url);
       const path = url.pathname;
 
-      // Preflight
-      if (request.method === 'OPTIONS') return new Response('OK', { headers: corsHeaders });
 
       // instantiate cached clients
       const supabase = getCachedClient(env);
@@ -97,66 +125,99 @@ export default {
 
       // --- init-supabase ---
       if (path === '/init-supabase') {
-        return new Response(JSON.stringify({ supabaseUrl: env.SUPABASE_URL, supabaseAnonKey: env.SUPABASE_ANON_KEY }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ supabaseUrl: env.SUPABASE_URL, supabaseAnonKey: env.SUPABASE_ANON_KEY }), { headers});
       }
 
       // --- register ---
-      if (path === '/register' && request.method === 'POST') {
-        try {
-          const body = await request.json();
-          const rawEmail = body.email;
-          const rawPassword = body.password;
-          const email = sanitizeEmail(rawEmail);
-          const password = sanitizePassword(rawPassword);
+      // if (path === '/register' && request.method === 'POST') {
+      //   try {
+      //     const body = await request.json();
+      //     const rawEmail = body.email;
+      //     const rawPassword = body.password;
+      //     const email = sanitizeEmail(rawEmail);
+      //     const password = sanitizePassword(rawPassword);
 
-          if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
-          if (password.length < 6) return new Response(JSON.stringify({ error: 'パスワードは6文字以上で入力してください' }), { status: 400, headers: corsHeaders });
+      //     if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
+      //     if (password.length < 6) return new Response(JSON.stringify({ error: 'パスワードは6文字以上で入力してください' }), { status: 400, headers: corsHeaders });
 
-          // check if email exists using admin client listing (costly but necessary for duplicate check)
-          const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-          if (listError) {
-            console.error('User list error:', listError.message);
-            return new Response(JSON.stringify({ error: 'ユーザー確認中にエラーが発生しました。' }), { status: 500, headers: corsHeaders });
-          }
-          const alreadyExists = userList.users.some((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-          if (alreadyExists) return new Response(JSON.stringify({ error: 'このメールアドレスは既に登録されています。' }), { status: 400, headers: corsHeaders });
+      //     // check if email exists using admin client listing (costly but necessary for duplicate check)
+      //     const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      //     if (listError) {
+      //       console.error('User list error:', listError.message);
+      //       return new Response(JSON.stringify({ error: 'ユーザー確認中にエラーが発生しました。' }), { status: 500, headers: corsHeaders });
+      //     }
+      //     const alreadyExists = userList.users.some((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+      //     if (alreadyExists) return new Response(JSON.stringify({ error: 'このメールアドレスは既に登録されています。' }), { status: 400, headers: corsHeaders });
 
-          const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: 'https://chi-map.pages.dev/auth' } });
-          if (error) {
-            console.error('Signup error:', error.message);
-            return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
-          }
+      //     const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: 'https://chi-map.pages.dev/auth' } });
+      //     if (error) {
+      //       console.error('Signup error:', error.message);
+      //       return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
+      //     }
 
-          return new Response(JSON.stringify({ success: true, message: '確認メールを送信しました。メール内リンクをクリックしてログインしてください。' }), { headers: corsHeaders });
-        } catch (err) {
-          console.error('Register worker error:', err);
-          return new Response(JSON.stringify({ error: '内部エラーが発生しました。' }), { status: 500, headers: corsHeaders });
+      //     return new Response(JSON.stringify({ success: true, message: '確認メールを送信しました。メール内リンクをクリックしてログインしてください。' }), { headers: corsHeaders });
+      //   } catch (err) {
+      //     console.error('Register worker error:', err);
+      //     return new Response(JSON.stringify({ error: '内部エラーが発生しました。' }), { status: 500, headers: corsHeaders });
+      //   }
+      // }
+
+      // ---- /register -----
+      if (path === "/register" && request.method === "POST") {
+        const { email, password } = await request.json();
+
+        // Supabase 標準 signUp、ServiceRole 不要（危険なので使わない）
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: "https://chi-map.pages.dev/auth" }
+        });
+
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), { status: 400, headers });
         }
+
+        return new Response(JSON.stringify({ success: true }), { headers });
       }
+      // // --- login ---
+      // if (path === '/login' && request.method === 'POST') {
+      //   const body = await request.json();
+      //   const email = sanitizeEmail(body.email);
+      //   const password = sanitizePassword(body.password);
+      //   if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
 
-      // --- login ---
-      if (path === '/login' && request.method === 'POST') {
-        const body = await request.json();
-        const email = sanitizeEmail(body.email);
-        const password = sanitizePassword(body.password);
-        if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
+      //   const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
+      //   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 401, headers: corsHeaders });
 
-        const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 401, headers: corsHeaders });
+      //   const access_token = data.session?.access_token || null;
+      //   const refresh_token = data.session?.refresh_token || null;
+      //   let message = 'ログイン成功';
+      //   if (!access_token) message = 'メール未確認またはセッション未作成のためトークンは発行されません';
 
-        const access_token = data.session?.access_token || null;
-        const refresh_token = data.session?.refresh_token || null;
-        let message = 'ログイン成功';
-        if (!access_token) message = 'メール未確認またはセッション未作成のためトークンは発行されません';
+      //   return new Response(JSON.stringify({ success: !!data.user, user: data.user, access_token, refresh_token, message }), { headers: corsHeaders });
+      // }
+      // ---- /login（Anonクライアント使用） ----
+      if (path === "/login" && request.method === "POST") {
+        const { email, password } = await request.json();
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-        return new Response(JSON.stringify({ success: !!data.user, user: data.user, access_token, refresh_token, message }), { headers: corsHeaders });
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), { status: 401, headers });
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          user: data.user,
+          access_token: data.session?.access_token,
+          refresh_token: data.session?.refresh_token
+        }), { headers });
       }
 
       // --- me ---
       if (path === '/me' && request.method === 'GET') {
         const authHeader = request.headers.get('Authorization');
         const refreshHeader = request.headers.get('X-Refresh-Token');
-        if (!authHeader && !refreshHeader) return new Response(JSON.stringify({ loggedIn: false, message: 'No access token' }), { status: 401, headers: corsHeaders });
+        if (!authHeader && !refreshHeader) return new Response(JSON.stringify({ loggedIn: false, message: 'No access token' }), { status: 401, headers});
 
         if (authHeader) {
           const token = authHeader.replace('Bearer ', '').trim();
@@ -165,7 +226,7 @@ export default {
             const user = data.user;
             const { data: roleData, error: roleError } = await supabaseAdmin.from('app_users').select('role').eq('email', user.email).single();
             const role = roleError || !roleData ? 'user' : roleData.role;
-            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role } }), { headers: corsHeaders });
+            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role } }), { headers});
           }
         }
 
@@ -177,18 +238,18 @@ export default {
           if (session && user && !refreshError) {
             const { data: roleData, error: roleError } = await supabase.from('app_users').select('role').eq('id', user.id).single();
             const role = roleError || !roleData ? 'user' : roleData.role;
-            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role }, new_access_token: session.access_token, new_refresh_token: session.refresh_token }), { headers: corsHeaders });
+            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role }, new_access_token: session.access_token, new_refresh_token: session.refresh_token }), { headers});
           }
-          return new Response(JSON.stringify({ loggedIn: false, message: 'Failed to refresh session or invalid refresh_token' }), { status: 401, headers: corsHeaders });
+          return new Response(JSON.stringify({ loggedIn: false, message: 'Failed to refresh session or invalid refresh_token' }), { status: 401, headers });
         }
 
-        return new Response(JSON.stringify({ loggedIn: false, message: 'Invalid or expired token' }), { status: 401, headers: corsHeaders });
+        return new Response(JSON.stringify({ loggedIn: false, message: 'Invalid or expired token' }), { status: 401, headers });
       }
 
       // --- filter-pins: improved to avoid heavy DB/RPC use ---
       if (path === '/filter-pins' && request.method === 'POST') {
         const { categories, radius, center } = await request.json();
-        if (!categories || !Array.isArray(categories)) return new Response(JSON.stringify({ error: 'categories は配列である必要があります' }), { status: 400, headers: corsHeaders });
+        if (!categories || !Array.isArray(categories)) return new Response(JSON.stringify({ error: 'categories は配列である必要があります' }), { status: 400, headers});
 
         // Build a reduced DB query using bounding box to reduce scanned rows
         let query = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at');
@@ -206,7 +267,7 @@ export default {
         }
 
         const { data, error } = await query;
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
 
         let results = data || [];
         if (radiusMeters && center) {
@@ -216,7 +277,7 @@ export default {
           });
         }
 
-        return new Response(JSON.stringify(results), { headers: corsHeaders });
+        return new Response(JSON.stringify(results), { headers});
       }
 
       // --- post-pin: unchanged semantics but safer upload naming ---
@@ -229,7 +290,7 @@ export default {
         const lng = parseFloat(formData.get('lng')?.toString() || '0');
         const uid = formData.get('uid')?.toString();
 
-        if (!title || !category_id || !uid) return new Response(JSON.stringify({ error: '必須項目が足りません' }), { status: 400, headers: corsHeaders });
+        if (!title || !category_id || !uid) return new Response(JSON.stringify({ error: '必須項目が足りません' }), { status: 400, headers});
 
         let image_path = null;
         const imageFile = formData.get('image') as File;
@@ -247,62 +308,92 @@ export default {
           title, description, category_id, lat, lng, uid, image_path, created_at: new Date().toISOString()
         }]).select();
 
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-        return new Response(JSON.stringify({ success: true, pin: data[0] }), { headers: corsHeaders });
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
+        return new Response(JSON.stringify({ success: true, pin: data[0] }), { headers});
       }
 
       // --- get-all-pins: return lightweight fields only ---
       if (path === '/get-all-pins') {
         const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)');
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-        return new Response(JSON.stringify({data}), { headers: corsHeaders });
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
+        return new Response(JSON.stringify({ data }), { headers});
       }
 
       // --- get-user-pins ---
       if (path === '/get-user-pins' && request.method === 'POST') {
         const { userId } = await request.json();
-        if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers: corsHeaders });
-        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)').eq('uid',userId);
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-        return new Response(JSON.stringify({data}), { headers: corsHeaders });
+        if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers});
+        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)').eq('uid', userId);
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
+        return new Response(JSON.stringify({ data }), { headers});
       }
 
-      // --- delete-pin ---
-      if (path === '/delete-pin' && request.method === 'POST') {
-        const { id, imagePath, access_token, refresh_token, role } = await request.json();
-        if (!id) return new Response(JSON.stringify({ error: 'id が必要です' }), { status: 400, headers: corsHeaders });
+//       // --- delete-pin ---
+//       if (path === '/delete-pin' && request.method === 'POST') {
+//         const { id, imagePath, access_token, refresh_token, role } = await request.json();
+//         if (!id) return new Response(JSON.stringify({ error: 'id が必要です' }), { status: 400, headers});
 
-        // Use admin client for admin deletion only; otherwise set session for user client
-        if (role === 'admin') {
-          const { error: deleteError } = await supabaseAdmin.from('hazard_pin').delete().eq('id', id);
-          if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: corsHeaders });
-        } else {
-          if (!access_token || !refresh_token) return new Response(JSON.stringify({ error: 'access_token, refresh_token が必要です' }), { status: 400, headers: corsHeaders });
-          await supabase.auth.setSession({ access_token, refresh_token });
-          const { error: deleteError } = await supabase.from('hazard_pin').delete().eq('id', id);
-          if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: corsHeaders });
-        }
+//         // Use admin client for admin deletion only; otherwise set session for user client
+//         if (role === 'admin') {
+//           const { error: deleteError } = await supabaseAdmin.from('hazard_pin').delete().eq('id', id);
+//           if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers});
+//         } else {
+//           if (!access_token || !refresh_token) return new Response(JSON.stringify({ error: 'access_token, refresh_token が必要です' }), { status: 400, headers});
+//           await supabase.auth.setSession({ access_token, refresh_token });
+//           const { error: deleteError } = await supabase.from('hazard_pin').delete().eq('id', id);
+//           if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers});
+//         }
 
-        // storage delete
-        if (imagePath) {
-          try {
-            const urlObj = new URL(imagePath);
-            const parts = urlObj.pathname.split('/');
-            const pinImagesIndex = parts.indexOf('pin-images');
-            if (pinImagesIndex >= 0) {
-              const filePath = parts.slice(pinImagesIndex + 1).join('/');
-              const { error: storageError } = await supabaseAdmin.storage.from('pin-images').remove([filePath]);
-              if (storageError) return new Response(JSON.stringify({ warning: 'DBは削除済みだが画像削除失敗', storageError: storageError.message }), { status: 200, headers: corsHeaders });
-            }
-          } catch (e) {
-            console.error('storage delete error', e);
-          }
-        }
+//         // storage delete
+//         if (imagePath) {
+//           try {
+//             const urlObj = new URL(imagePath);
+//             const parts = urlObj.pathname.split('/');
+//             const pinImagesIndex = parts.indexOf('pin-images');
+//             if (pinImagesIndex >= 0) {
+//               const filePath = parts.slice(pinImagesIndex + 1).join('/');
+//               const { error: storageError } = await supabaseAdmin.storage.from('pin-images').remove([filePath]);
+//               if (storageError) return new Response(JSON.stringify({ warning: 'DBは削除済みだが画像削除失敗', storageError: storageError.message }), { status: 200, headers});
+//             }
+//           } catch (e) {
+//             console.error('storage delete error', e);
+//           }
+//         }
 
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+//         return new Response(JSON.stringify({ success: true }), { headers});
+//       }
+//       return new Response(JSON.stringify({ message: 'Worker is running', path }), { status: 200, headers});
+
+
+    if (path === "/delete-pin" && request.method === "POST") {
+      const { id, imagePath } = await request.json();
+      const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+
+      if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers });
+
+      const role = await getUserRole(token, supabase, supabaseAdmin);
+      const { data: me } = await supabase.auth.getUser(token);
+
+      const pin = await supabase.from("hazard_pin").select("uid").eq("id", id).single();
+      const isOwner = pin.data?.uid === me.user?.id;
+
+      if (!isOwner && role !== "admin") {
+        return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
       }
 
-      return new Response(JSON.stringify({ message: 'Worker is running', path }), { status: 200, headers: corsHeaders });
+      await supabase.from("hazard_pin").delete().eq("id", id);
+
+      // --- 安全なストレージ削除 ---
+      if (imagePath && imagePath.includes("/pin-images/user_uploads/")) {
+        const file = imagePath.split("/pin-images/")[1];
+        await supabaseAdmin.storage.from("pin-images").remove([file]);
+      }
+      return new Response(JSON.stringify({ success: true }), { headers });
+    }
+    return new Response(JSON.stringify({ message: "OK" }), { headers });
+
+    
+
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message || String(err) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
