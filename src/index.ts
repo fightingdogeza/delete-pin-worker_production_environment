@@ -259,10 +259,10 @@ export default {
       }
 
       // --- get-user-pins ---
-      if (path === '/get-user-pins') {
+      if (path === '/get-user-pins' && request.method === 'POST') {
         const { userId } = await request.json();
         if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers: corsHeaders });
-        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)');
+        const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)').eq('uid',userId);
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
         return new Response(JSON.stringify({data}), { headers: corsHeaders });
       }
