@@ -127,46 +127,9 @@ export default {
       if (path === '/init-supabase') {
         return new Response(JSON.stringify({ supabaseUrl: env.SUPABASE_URL, supabaseAnonKey: env.SUPABASE_ANON_KEY }), { headers});
       }
-
-      // --- register ---
-      // if (path === '/register' && request.method === 'POST') {
-      //   try {
-      //     const body = await request.json();
-      //     const rawEmail = body.email;
-      //     const rawPassword = body.password;
-      //     const email = sanitizeEmail(rawEmail);
-      //     const password = sanitizePassword(rawPassword);
-
-      //     if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
-      //     if (password.length < 6) return new Response(JSON.stringify({ error: 'パスワードは6文字以上で入力してください' }), { status: 400, headers: corsHeaders });
-
-      //     // check if email exists using admin client listing (costly but necessary for duplicate check)
-      //     const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-      //     if (listError) {
-      //       console.error('User list error:', listError.message);
-      //       return new Response(JSON.stringify({ error: 'ユーザー確認中にエラーが発生しました。' }), { status: 500, headers: corsHeaders });
-      //     }
-      //     const alreadyExists = userList.users.some((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-      //     if (alreadyExists) return new Response(JSON.stringify({ error: 'このメールアドレスは既に登録されています。' }), { status: 400, headers: corsHeaders });
-
-      //     const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: 'https://chi-map.pages.dev/auth' } });
-      //     if (error) {
-      //       console.error('Signup error:', error.message);
-      //       return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
-      //     }
-
-      //     return new Response(JSON.stringify({ success: true, message: '確認メールを送信しました。メール内リンクをクリックしてログインしてください。' }), { headers: corsHeaders });
-      //   } catch (err) {
-      //     console.error('Register worker error:', err);
-      //     return new Response(JSON.stringify({ error: '内部エラーが発生しました。' }), { status: 500, headers: corsHeaders });
-      //   }
-      // }
-
       // ---- /register -----
       if (path === "/register" && request.method === "POST") {
         const { email, password } = await request.json();
-
-        // Supabase 標準 signUp、ServiceRole 不要（危険なので使わない）
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -179,23 +142,6 @@ export default {
 
         return new Response(JSON.stringify({ success: true }), { headers });
       }
-      // // --- login ---
-      // if (path === '/login' && request.method === 'POST') {
-      //   const body = await request.json();
-      //   const email = sanitizeEmail(body.email);
-      //   const password = sanitizePassword(body.password);
-      //   if (!email || !password) return new Response(JSON.stringify({ error: 'メールとパスワードを入力してください' }), { status: 400, headers: corsHeaders });
-
-      //   const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
-      //   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 401, headers: corsHeaders });
-
-      //   const access_token = data.session?.access_token || null;
-      //   const refresh_token = data.session?.refresh_token || null;
-      //   let message = 'ログイン成功';
-      //   if (!access_token) message = 'メール未確認またはセッション未作成のためトークンは発行されません';
-
-      //   return new Response(JSON.stringify({ success: !!data.user, user: data.user, access_token, refresh_token, message }), { headers: corsHeaders });
-      // }
       // ---- /login（Anonクライアント使用） ----
       if (path === "/login" && request.method === "POST") {
         const { email, password } = await request.json();
@@ -311,8 +257,6 @@ export default {
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
         return new Response(JSON.stringify({ success: true, pin: data[0] }), { headers});
       }
-
-      // --- get-all-pins: return lightweight fields only ---
       if (path === '/get-all-pins') {
         const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)');
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
@@ -327,43 +271,6 @@ export default {
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
         return new Response(JSON.stringify({ data }), { headers});
       }
-
-//       // --- delete-pin ---
-//       if (path === '/delete-pin' && request.method === 'POST') {
-//         const { id, imagePath, access_token, refresh_token, role } = await request.json();
-//         if (!id) return new Response(JSON.stringify({ error: 'id が必要です' }), { status: 400, headers});
-
-//         // Use admin client for admin deletion only; otherwise set session for user client
-//         if (role === 'admin') {
-//           const { error: deleteError } = await supabaseAdmin.from('hazard_pin').delete().eq('id', id);
-//           if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers});
-//         } else {
-//           if (!access_token || !refresh_token) return new Response(JSON.stringify({ error: 'access_token, refresh_token が必要です' }), { status: 400, headers});
-//           await supabase.auth.setSession({ access_token, refresh_token });
-//           const { error: deleteError } = await supabase.from('hazard_pin').delete().eq('id', id);
-//           if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers});
-//         }
-
-//         // storage delete
-//         if (imagePath) {
-//           try {
-//             const urlObj = new URL(imagePath);
-//             const parts = urlObj.pathname.split('/');
-//             const pinImagesIndex = parts.indexOf('pin-images');
-//             if (pinImagesIndex >= 0) {
-//               const filePath = parts.slice(pinImagesIndex + 1).join('/');
-//               const { error: storageError } = await supabaseAdmin.storage.from('pin-images').remove([filePath]);
-//               if (storageError) return new Response(JSON.stringify({ warning: 'DBは削除済みだが画像削除失敗', storageError: storageError.message }), { status: 200, headers});
-//             }
-//           } catch (e) {
-//             console.error('storage delete error', e);
-//           }
-//         }
-
-//         return new Response(JSON.stringify({ success: true }), { headers});
-//       }
-//       return new Response(JSON.stringify({ message: 'Worker is running', path }), { status: 200, headers});
-
 
     if (path === "/delete-pin" && request.method === "POST") {
       const { id, imagePath } = await request.json();
@@ -382,8 +289,6 @@ export default {
       }
 
       await supabase.from("hazard_pin").delete().eq("id", id);
-
-      // --- 安全なストレージ削除 ---
       if (imagePath && imagePath.includes("/pin-images/user_uploads/")) {
         const file = imagePath.split("/pin-images/")[1];
         await supabaseAdmin.storage.from("pin-images").remove([file]);
