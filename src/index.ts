@@ -42,8 +42,13 @@ function sanitizeFileName(fileName: string) {
 function sanitizeText(input: string) {
   return (input || '').replace(/[<>"'`;(){}]/g, '').slice(0, 2000);
 }
-function sanitizeEmail(input: string) {
-  return (input || '').replace(/[^a-zA-Z0-9@._+-]/g, '').slice(0, 256);
+function sanitizeEmail(email: string) {
+  email = (email || '').trim();
+  email = email.replace(/[^a-zA-Z0-9@._+-]/g, '');
+
+  // メール形式チェック
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) ? email.slice(0, 256) : '';
 }
 function sanitizePassword(input: string) {
   return (input || '').replace(/[\r\n\t]/g, '').slice(0, 256);
@@ -76,14 +81,14 @@ function boundingBox(lat: number, lng: number, radiusMeters: number) {
 }
 const ALLOWED_ORIGIN = "https://chi-map.pages.dev";
 
-function corsHeaders(origin: string | null): Record<string, string>{
+function corsHeaders(origin: string | null): Record<string, string> {
   if (origin !== ALLOWED_ORIGIN) {
     return { 'Access-Control-Allow-Origin': 'none' };
   }
   return {
     'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,content-type,authorization',
     'Content-Type': 'application/json'
   };
 }
@@ -125,7 +130,7 @@ export default {
 
       // --- init-supabase ---
       if (path === '/init-supabase') {
-        return new Response(JSON.stringify({ supabaseUrl: env.SUPABASE_URL, supabaseAnonKey: env.SUPABASE_ANON_KEY }), { headers});
+        return new Response(JSON.stringify({ supabaseUrl: env.SUPABASE_URL, supabaseAnonKey: env.SUPABASE_ANON_KEY }), { headers });
       }
       // ---- /register -----
       if (path === "/register" && request.method === "POST") {
@@ -163,7 +168,7 @@ export default {
       if (path === '/me' && request.method === 'GET') {
         const authHeader = request.headers.get('Authorization');
         const refreshHeader = request.headers.get('X-Refresh-Token');
-        if (!authHeader && !refreshHeader) return new Response(JSON.stringify({ loggedIn: false, message: 'No access token' }), { status: 401, headers});
+        if (!authHeader && !refreshHeader) return new Response(JSON.stringify({ loggedIn: false, message: 'No access token' }), { status: 401, headers });
 
         if (authHeader) {
           const token = authHeader.replace('Bearer ', '').trim();
@@ -172,7 +177,7 @@ export default {
             const user = data.user;
             const { data: roleData, error: roleError } = await supabaseAdmin.from('app_users').select('role').eq('email', user.email).single();
             const role = roleError || !roleData ? 'user' : roleData.role;
-            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role } }), { headers});
+            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role } }), { headers });
           }
         }
 
@@ -184,7 +189,7 @@ export default {
           if (session && user && !refreshError) {
             const { data: roleData, error: roleError } = await supabase.from('app_users').select('role').eq('id', user.id).single();
             const role = roleError || !roleData ? 'user' : roleData.role;
-            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role }, new_access_token: session.access_token, new_refresh_token: session.refresh_token }), { headers});
+            return new Response(JSON.stringify({ loggedIn: true, user: { id: user.id, email: user.email, role }, new_access_token: session.access_token, new_refresh_token: session.refresh_token }), { headers });
           }
           return new Response(JSON.stringify({ loggedIn: false, message: 'Failed to refresh session or invalid refresh_token' }), { status: 401, headers });
         }
@@ -195,7 +200,7 @@ export default {
       // --- filter-pins: improved to avoid heavy DB/RPC use ---
       if (path === '/filter-pins' && request.method === 'POST') {
         const { categories, radius, center } = await request.json();
-        if (!categories || !Array.isArray(categories)) return new Response(JSON.stringify({ error: 'categories は配列である必要があります' }), { status: 400, headers});
+        if (!categories || !Array.isArray(categories)) return new Response(JSON.stringify({ error: 'categories は配列である必要があります' }), { status: 400, headers });
 
         // Build a reduced DB query using bounding box to reduce scanned rows
         let query = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at');
@@ -213,7 +218,7 @@ export default {
         }
 
         const { data, error } = await query;
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
 
         let results = data || [];
         if (radiusMeters && center) {
@@ -223,7 +228,7 @@ export default {
           });
         }
 
-        return new Response(JSON.stringify(results), { headers});
+        return new Response(JSON.stringify(results), { headers });
       }
 
       // --- post-pin: unchanged semantics but safer upload naming ---
@@ -236,7 +241,7 @@ export default {
         const lng = parseFloat(formData.get('lng')?.toString() || '0');
         const uid = formData.get('uid')?.toString();
 
-        if (!title || !category_id || !uid) return new Response(JSON.stringify({ error: '必須項目が足りません' }), { status: 400, headers});
+        if (!title || !category_id || !uid) return new Response(JSON.stringify({ error: '必須項目が足りません' }), { status: 400, headers });
 
         let image_path = null;
         const imageFile = formData.get('image') as File;
@@ -254,50 +259,50 @@ export default {
           title, description, category_id, lat, lng, uid, image_path, created_at: new Date().toISOString()
         }]).select();
 
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
-        return new Response(JSON.stringify({ success: true, pin: data[0] }), { headers});
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+        return new Response(JSON.stringify({ success: true, pin: data[0] }), { headers });
       }
       if (path === '/get-all-pins') {
         const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)');
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
-        return new Response(JSON.stringify({ data }), { headers});
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+        return new Response(JSON.stringify({ data }), { headers });
       }
 
       // --- get-user-pins ---
       if (path === '/get-user-pins' && request.method === 'POST') {
         const { userId } = await request.json();
-        if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers});
+        if (!userId) return new Response(JSON.stringify({ error: 'userIdが必要です' }), { status: 400, headers });
         const { data, error } = await supabase.from('hazard_pin').select('id,title,description,category_id,lat,lng,uid,image_path,created_at,categories(name)').eq('uid', userId);
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers});
-        return new Response(JSON.stringify({ data }), { headers});
+        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+        return new Response(JSON.stringify({ data }), { headers });
       }
 
-    if (path === "/delete-pin" && request.method === "POST") {
-      const { id, imagePath } = await request.json();
-      const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+      if (path === "/delete-pin" && request.method === "POST") {
+        const { id, imagePath } = await request.json();
+        const token = request.headers.get("Authorization")?.replace("Bearer ", "");
 
-      if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers });
+        if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers });
 
-      const role = await getUserRole(token, supabase, supabaseAdmin);
-      const { data: me } = await supabase.auth.getUser(token);
+        const role = await getUserRole(token, supabase, supabaseAdmin);
+        const { data: me } = await supabase.auth.getUser(token);
 
-      const pin = await supabase.from("hazard_pin").select("uid").eq("id", id).single();
-      const isOwner = pin.data?.uid === me.user?.id;
+        const pin = await supabase.from("hazard_pin").select("uid").eq("id", id).single();
+        const isOwner = pin.data?.uid === me.user?.id;
 
-      if (!isOwner && role !== "admin") {
-        return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
+        if (!isOwner && role !== "admin") {
+          return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
+        }
+
+        await supabase.from("hazard_pin").delete().eq("id", id);
+        if (imagePath && imagePath.includes("/pin-images/user_uploads/")) {
+          const file = imagePath.split("/pin-images/")[1];
+          await supabaseAdmin.storage.from("pin-images").remove([file]);
+        }
+        return new Response(JSON.stringify({ success: true }), { headers });
       }
+      return new Response(JSON.stringify({ message: "OK" }), { headers });
 
-      await supabase.from("hazard_pin").delete().eq("id", id);
-      if (imagePath && imagePath.includes("/pin-images/user_uploads/")) {
-        const file = imagePath.split("/pin-images/")[1];
-        await supabaseAdmin.storage.from("pin-images").remove([file]);
-      }
-      return new Response(JSON.stringify({ success: true }), { headers });
-    }
-    return new Response(JSON.stringify({ message: "OK" }), { headers });
 
-    
 
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message || String(err) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
