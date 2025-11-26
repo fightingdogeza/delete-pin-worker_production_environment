@@ -281,29 +281,64 @@ export default {
         const { id, imagePath } = await request.json();
         const token = request.headers.get("Authorization")?.replace("Bearer ", "");
 
-        if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers });
+        if (!token) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 403,
+            headers,
+          });
+        }
 
+        // 1) 権限チェック（ユーザー権限）
         const role = await getUserRole(token, supabase, supabaseAdmin);
         const { data: me } = await supabase.auth.getUser(token);
 
-        const pin = await supabase.from("hazard_pin").select("uid").eq("id", id).single();
+        const pin = await supabase
+          .from("hazard_pin")
+          .select("uid")
+          .eq("id", id)
+          .single();
+
         const isOwner = pin.data?.uid === me.user?.id;
 
         if (!isOwner && role !== "admin") {
-          return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers,
+          });
         }
 
-        await supabase.from("hazard_pin").delete().eq("id", id);
+        // 2) DB 削除は supabaseAdmin（service_role）
+        const { error: dbError } = await supabaseAdmin
+          .from("hazard_pin")
+          .delete()
+          .eq("id", id);
+
+        if (dbError) {
+          return new Response(JSON.stringify({ error: dbError.message }), {
+            status: 400,
+            headers,
+          });
+        }
+
+        // 3) Storage 削除
         if (imagePath && imagePath.includes("/pin-images/user_uploads/")) {
           const file = imagePath.split("/pin-images/")[1];
-          await supabaseAdmin.storage.from("pin-images").remove([file]);
+          const { error: storageError } = await supabaseAdmin
+            .storage
+            .from("pin-images")
+            .remove([file]);
+
+          if (storageError) {
+            return new Response(JSON.stringify({ error: storageError.message }), {
+              status: 400,
+              headers,
+            });
+          }
         }
+
         return new Response(JSON.stringify({ success: true }), { headers });
       }
       return new Response(JSON.stringify({ message: "OK" }), { headers });
-
-
-
     } catch (err: any) {
       return new Response(JSON.stringify({ error: err.message || String(err) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
