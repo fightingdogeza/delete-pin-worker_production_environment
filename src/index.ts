@@ -150,16 +150,19 @@ export default {
 
         if (userList?.users?.length > 0) {
           const existingUser = userList.users[0];
-          const message = !existingUser.email_confirmed_at
-            ? "このメールアドレスは未確認です。確認メールを再送してください。"
-            : "このメールアドレスは既に登録済みです。ログインしてください。";
-
-          // ★ ここを 200 にしてフロントで処理
-          return new Response(JSON.stringify({
-            success: false,
-            error: message
-          }), { status: 200, headers });
+          if (!existingUser.email_confirmed_at) {
+            // 未確認ユーザー
+            return new Response(JSON.stringify({
+              error: "このメールアドレスは未確認の状態で既に登録されています。確認メールを再送してください。"
+            }), { status: 400, headers });
+          } else {
+            // 本登録済み
+            return new Response(JSON.stringify({
+              error: "このメールアドレスは既に登録済みです。ログインしてください。"
+            }), { status: 400, headers });
+          }
         }
+
         // ------------------------------
         // 2) 新規登録
         // ------------------------------
