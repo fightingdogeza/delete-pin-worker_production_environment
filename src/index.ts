@@ -135,28 +135,31 @@ export default {
       // ---- /register -----
       if (path === "/register" && request.method === "POST") {
         const { email, password } = await request.json();
-        const { data: existsUser } = await supabaseAdmin
+
+        const { data, error } = await supabaseAdmin
           .from("auth.users")
           .select("id, email_confirmed_at")
           .eq("email", email)
           .maybeSingle();
-        if (existsUser) {
+
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+        }
+
+        if (data) {
           return new Response(JSON.stringify({
             error: "このメールアドレスは既に登録済みです。確認メールが届いていない場合は再送をお試しください。"
           }), { status: 400, headers });
         }
 
-        const { error } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: "https://chi-map.pages.dev/auth" }
         });
 
-        if (error) {
-          if (error.message.includes("registered")) {
-            return new Response(JSON.stringify({ error: "このメールアドレスは既に登録されています。" }), { status: 400, headers });
-          }
-          return new Response(JSON.stringify({ error: error.message }), { status: 400, headers });
+        if (signUpError) {
+          return new Response(JSON.stringify({ error: signUpError.message }), { status: 400, headers });
         }
 
         return new Response(JSON.stringify({ success: true }), { headers });
