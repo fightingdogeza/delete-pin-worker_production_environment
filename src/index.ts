@@ -135,6 +135,17 @@ export default {
       // ---- /register -----
       if (path === "/register" && request.method === "POST") {
         const { email, password } = await request.json();
+        const { data: existsUser } = await supabaseAdmin
+          .from("auth.users")
+          .select("id, email_confirmed_at")
+          .eq("email", email)
+          .maybeSingle();
+        if (existsUser) {
+          return new Response(JSON.stringify({
+            error: "このメールアドレスは既に登録済みです。確認メールが届いていない場合は再送をお試しください。"
+          }), { status: 400, headers });
+        }
+
         const { error } = await supabase.auth.signUp({
           email,
           password,
