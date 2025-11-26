@@ -142,6 +142,9 @@ export default {
         });
 
         if (error) {
+          if (error.message.includes("registered")) {
+            return new Response(JSON.stringify({ error: "このメールアドレスは既に登録されています。" }), { status: 400, headers });
+          }
           return new Response(JSON.stringify({ error: error.message }), { status: 400, headers });
         }
 
