@@ -136,22 +136,36 @@ export default {
       if (path === "/register" && request.method === "POST") {
         const { email, password } = await request.json();
 
-        const { data, error } = await supabaseAdmin
-          .from("auth.users")
-          .select("id, email_confirmed_at")
-          .eq("email", email)
-          .maybeSingle();
+        // ------------------------------
+        // 1) 既存ユーザー確認（Admin API）
+        // ------------------------------
+        const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+          filter: `email=eq.${email}`,
+          limit: 1
+        });
 
-        if (error) {
-          return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+        if (listError) {
+          return new Response(JSON.stringify({ error: listError.message }), { status: 500, headers });
         }
 
-        if (data) {
-          return new Response(JSON.stringify({
-            error: "このメールアドレスは既に登録済みです。確認メールが届いていない場合は再送をお試しください。"
-          }), { status: 400, headers });
+        if (userList?.users?.length > 0) {
+          const existingUser = userList.users[0];
+          if (!existingUser.email_confirmed_at) {
+            // 未確認ユーザー
+            return new Response(JSON.stringify({
+              error: "このメールアドレスは未確認の状態で既に登録されています。確認メールを再送してください。"
+            }), { status: 400, headers });
+          } else {
+            // 本登録済み
+            return new Response(JSON.stringify({
+              error: "このメールアドレスは既に登録済みです。ログインしてください。"
+            }), { status: 400, headers });
+          }
         }
 
+        // ------------------------------
+        // 2) 新規登録
+        // ------------------------------
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
