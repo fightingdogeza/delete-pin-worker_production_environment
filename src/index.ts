@@ -238,8 +238,11 @@ export default {
         const lat = parseFloat(formData.get('lat')?.toString() || '0');
         const lng = parseFloat(formData.get('lng')?.toString() || '0');
         const uid = formData.get('uid')?.toString();
-
         if (!title || !category_id || !uid) return new Response(JSON.stringify({ error: '必須項目が足りません' }), { status: 400, headers });
+
+        const prefecture = formData.get('prefecture')?.toString();
+        const city = formData.get('city')?.toString();
+        const district = formData.get('district')?.toString();
 
         let image_path = null;
         const imageFile = formData.get('image') as File;
@@ -254,7 +257,7 @@ export default {
         }
 
         const { data, error } = await supabase.from('hazard_pin').insert([{
-          title, description, category_id, lat, lng, uid, image_path, created_at: new Date().toISOString()
+          title, description, category_id, lat, lng, uid, image_path, created_at: new Date().toISOString(),prefecture,city,district
         }]).select();
 
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
