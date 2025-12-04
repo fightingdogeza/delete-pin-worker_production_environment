@@ -5,14 +5,12 @@ export interface Env {
   SUPABASE_ANON_KEY: string;
 }
 
-// 👇 Supabase 初期化関数を export
 export function initSupabase(env: Env) {
   return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     realtime: { enabled: false } as any,
   });
 }
 
-// 👇 fetch 関数はCORS対応のまま残す
 export default {
   async fetch(request: Request, env: Env) {
     const headers = {
