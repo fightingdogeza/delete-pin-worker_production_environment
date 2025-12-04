@@ -1,4 +1,4 @@
-name = "environment"
+name = "delete-worker"
 main = "src/index.ts"
 compatibility_date = "2025-11-05"
 compatibility_flags = ["nodejs_compat"]  # ← Node互換ON
