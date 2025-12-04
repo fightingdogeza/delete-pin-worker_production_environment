@@ -288,8 +288,6 @@ export default {
             headers,
           });
         }
-
-        // 1) 権限チェック（ユーザー権限）
         const role = await getUserRole(token, supabase, supabaseAdmin);
         const { data: me } = await supabase.auth.getUser(token);
 
@@ -307,8 +305,6 @@ export default {
             headers,
           });
         }
-
-        // 2) DB 削除は supabaseAdmin（service_role）
         const { error: dbError } = await supabaseAdmin
           .from("hazard_pin")
           .delete()
@@ -320,8 +316,6 @@ export default {
             headers,
           });
         }
-
-        // 3) Storage 削除
         if (imagePath && imagePath.includes("/pin-images/user_uploads/")) {
           const file = imagePath.split("/pin-images/")[1];
           const { error: storageError } = await supabaseAdmin
@@ -336,7 +330,6 @@ export default {
             });
           }
         }
-
         return new Response(JSON.stringify({ success: true }), { headers });
       }
       return new Response(JSON.stringify({ message: "OK" }), { headers });
