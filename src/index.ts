@@ -86,7 +86,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
   //   return { 'Access-Control-Allow-Origin': 'none' };
   // }
   return {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin':ALLOWED_ORIGIN ?? '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,content-type,authorization',
     'Content-Type': 'application/json'
