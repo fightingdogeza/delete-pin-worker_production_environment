@@ -208,7 +208,7 @@ export default {
           if (numericCategories.length > 0) query = query.in('category_id', numericCategories);
         }
         // radius filter via bounding box + JS Haversine
-        let radiusMeters = null;
+        let radiusMeters: number |null = null;
         if (radius && center?.lat && center?.lng) {
           radiusMeters = Number(radius) * 1000;
           const box = boundingBox(center.lat, center.lng, radiusMeters);
@@ -244,7 +244,7 @@ export default {
         const city = formData.get('city')?.toString();
         const district = formData.get('district')?.toString();
 
-        let image_path = null;
+        let image_path: string | null = null;
         const imageFile = formData.get('image') as File;
         if (imageFile && (imageFile as any).size > 0) {
           const arrayBuffer = await (imageFile as File).arrayBuffer();
@@ -257,7 +257,7 @@ export default {
         }
 
         const { data, error } = await supabase.from('hazard_pin').insert([{
-          title, description, category_id, lat, lng, uid, image_path, created_at: new Date().toISOString(),prefecture,city,district
+          title, description, category_id, lat, lng, uid, image_path, created_at: new Date().toISOString(), prefecture, city, district
         }]).select();
 
         if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
