@@ -82,11 +82,11 @@ function boundingBox(lat: number, lng: number, radiusMeters: number) {
 const ALLOWED_ORIGIN = "https://chi-map.pages.dev";
 
 function corsHeaders(origin: string | null): Record<string, string> {
-  // if (origin !== ALLOWED_ORIGIN) {
-  //   return { 'Access-Control-Allow-Origin': 'none' };
-  // }
+  if (origin !== ALLOWED_ORIGIN) {
+    return { 'Access-Control-Allow-Origin': 'none' };
+  }
   return {
-    'Access-Control-Allow-Origin':ALLOWED_ORIGIN ?? '*',
+    'Access-Control-Allow-Origin':ALLOWED_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Refresh-Token,x-refresh-token,content-type,authorization',
     'Content-Type': 'application/json'
